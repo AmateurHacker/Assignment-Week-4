@@ -51,3 +51,6 @@ extractedData <- data.table(extractedData)
 tidyData <- aggregate(. ~Subject + Activity, extractedData, mean)
 tidyData <- tidyData[order(tidyData$Subject,tidyData$Activity),]
 write.table(tidyData, file = "Tidy.txt", row.names = FALSE)
+
+library(knitr)
+knit2html("codebook.Rmd");
