@@ -1,58 +1,67 @@
-library(data.table)
-library(dplyr)
+# Downloads data if the current folder does not have it
+if(!file.exists("./data")){dir.create("./data")}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+download.file(fileUrl,destfile="./data/Dataset.zip")
 
-featureNames <- read.table("UCI HAR Dataset/features.txt")
-activityLabels <- read.table("UCI HAR Dataset/activity_labels.txt", header = FALSE)
+# Unzips downloaded file into folder
+unzip(zipfile="./data/Dataset.zip",exdir="./data")
 
-subjectTrain <- read.table("UCI HAR Dataset/train/subject_train.txt", header = FALSE)
-activityTrain <- read.table("UCI HAR Dataset/train/y_train.txt", header = FALSE)
-featuresTrain <- read.table("UCI HAR Dataset/train/X_train.txt", header = FALSE)
+# Obtain list of files
+path_rf <- file.path("./data" , "UCI HAR Dataset")
+files<-list.files(path_rf, recursive=TRUE)
+files
 
-subjectTest <- read.table("UCI HAR Dataset/test/subject_test.txt", header = FALSE)
-activityTest <- read.table("UCI HAR Dataset/test/y_test.txt", header = FALSE)
-featuresTest <- read.table("UCI HAR Dataset/test/X_test.txt", header = FALSE)
+# REading activity files
+dataActivityTest  <- read.table(file.path(path_rf, "test" , "Y_test.txt" ),header = FALSE)
+dataActivityTrain <- read.table(file.path(path_rf, "train", "Y_train.txt"),header = FALSE)
 
-subject <- rbind(subjectTrain, subjectTest)
-activity <- rbind(activityTrain, activityTest)
-features <- rbind(featuresTrain, featuresTest)
+# Reading subject files
+dataSubjectTrain <- read.table(file.path(path_rf, "train", "subject_train.txt"),header = FALSE)
+dataSubjectTest  <- read.table(file.path(path_rf, "test" , "subject_test.txt"),header = FALSE)
 
-colnames(features) <- t(featureNames[2])
+# REading features files
+dataFeaturesTest  <- read.table(file.path(path_rf, "test" , "X_test.txt" ),header = FALSE)
+dataFeaturesTrain <- read.table(file.path(path_rf, "train", "X_train.txt"),header = FALSE)
 
-colnames(activity) <- "Activity"
-colnames(subject) <- "Subject"
-completeData <- cbind(features,activity,subject)
+# Concatenate the tables by rows using rbind
+dataSubject <- rbind(dataSubjectTrain, dataSubjectTest)
+dataActivity<- rbind(dataActivityTrain, dataActivityTest)
+dataFeatures<- rbind(dataFeaturesTrain, dataFeaturesTest)
 
-columnsWithMeanSTD <- grep(".*Mean.*|.*Std.*", names(completeData), ignore.case=TRUE)
-requiredColumns <- c(columnsWithMeanSTD, 562, 563)
-dim(completeData)
+# Give the variables names
+names(dataSubject)<-c("subject")
+names(dataActivity)<- c("activity")
+dataFeaturesNames <- read.table(file.path(path_rf, "features.txt"),head=FALSE)
+names(dataFeatures)<- dataFeaturesNames$V2
 
-extractedData <- completeData[,requiredColumns]
-dim(extractedData)
-names(extractedData)
+# After combining the tables by rows, all of the data are combined by columns
+dataCombine <- cbind(dataSubject, dataActivity)
+Data <- cbind(dataFeatures, dataCombine)
 
-names(extractedData)<-gsub("Acc", "Accelerometer", names(extractedData))
-names(extractedData)<-gsub("Gyro", "Gyroscope", names(extractedData))
-names(extractedData)<-gsub("BodyBody", "Body", names(extractedData))
-names(extractedData)<-gsub("Mag", "Magnitude", names(extractedData))
-names(extractedData)<-gsub("^t", "Time", names(extractedData))
-names(extractedData)<-gsub("^f", "Frequency", names(extractedData))
-names(extractedData)<-gsub("tBody", "TimeBody", names(extractedData))
-names(extractedData)<-gsub("-mean()", "Mean", names(extractedData), ignore.case = TRUE)
-names(extractedData)<-gsub("-std()", "STD", names(extractedData), ignore.case = TRUE)
-names(extractedData)<-gsub("-freq()", "Frequency", names(extractedData), ignore.case = TRUE)
-names(extractedData)<-gsub("angle", "Angle", names(extractedData))
-names(extractedData)<-gsub("gravity", "Gravity", names(extractedData))
+# Extracting values of names of features with mean and standard deviation
+subdataFeaturesNames<-dataFeaturesNames$V2[grep("mean\\(\\)|std\\(\\)", dataFeaturesNames$V2)]
 
-names(extractedData)
+# Subsetting the data frame by names of the features
+selectedNames<-c(as.character(subdataFeaturesNames), "subject", "activity" )
+Data<-subset(Data,select=selectedNames)
 
-extractedData$Subject <- as.factor(extractedData$Subject)
-extractedData <- data.table(extractedData)
+# Reading table of activity into activityLabels
+activityLabels <- read.table(file.path(path_rf, "activity_labels.txt"),header = FALSE)
+head(Data$activity,30)
 
-tidyData <- aggregate(. ~Subject + Activity, extractedData, mean)
-tidyData <- tidyData[order(tidyData$Subject,tidyData$Activity),]
-write.table(tidyData, file = "Tidy.txt", row.names = FALSE)
+# Subbing short names to something more readable
+names(Data)<-gsub("^t", "time", names(Data))
+names(Data)<-gsub("^f", "frequency", names(Data))
+names(Data)<-gsub("Acc", "Accelerometer", names(Data))
+names(Data)<-gsub("Gyro", "Gyroscope", names(Data))
+names(Data)<-gsub("Mag", "Magnitude", names(Data))
+names(Data)<-gsub("BodyBody", "Body", names(Data))
 
-tidyData
+# Looking at the names to see if they are more readable
+names(Data)
 
-library(knitr)
-knit2html("codebook.Rmd");
+# Tidy data set is produced
+library(plyr);
+Data2<-aggregate(. ~subject + activity, Data, mean)
+Data2<-Data2[order(Data2$subject,Data2$activity),]
+write.table(Data2, file = "tidydata.txt",row.name=FALSE)
